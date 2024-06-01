@@ -18,18 +18,37 @@
 #include "adcdata.h"
 #include "hal/wdt_hal.h"
 
+#define SPACE_MOUSE_PRO 1 
+#define SPACE_MOUSE_WIRELESS 2
+#define SPACE_MOUSE_ENTERPRISE 3
+
+// two events for translation and rotation
+#define SM_DEVICE  SPACE_MOUSE_PRO
+
+// single event for both translation and rotation
+// #define SM_DEVICE SPACE_MOUSE_WIRELESS
+
+// single event for both translation and rotation
+#define SM_DEVICE SPACE_MOUSE_ENTERPRISE
+
+#if SM_DEVICE == SPACE_MOUSE_PRO  || SM_DEVICE == SPACE_MOUSE_WIRELESS
+#define DEVICE_TYPE 66
+#else
+#define DEVICE_TYPE 12
+#endif
 
 static const char *TAG = "SM";
 
 /************* TinyUSB descriptors ****************/
 // This portion sets up the communication with the 3DConnexion software. The communication protocol is created here.
 // hidReportDescriptor webpage can be found here: https://eleccelerator.com/tutorial-about-usb-hid-report-descriptors/ 
+#if DEVICE_TYPE == 66
 #define TUD_HID_REPORT_DESC_SPACE_MOUSE \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                 ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_MULTI_AXIS_CONTROLLER  )   ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )                 ,\
   HID_COLLECTION ( HID_COLLECTION_PHYSICAL )                    ,\
-  HID_REPORT_ID(HID_ITF_PROTOCOL_KEYBOARD)                                               \
+  HID_REPORT_ID(HID_ITF_PROTOCOL_KEYBOARD)                       \
   HID_LOGICAL_MIN_N  ( -32768, 2                              ) ,\
   HID_LOGICAL_MAX_N  ( 32767, 2                               ) ,\
   HID_PHYSICAL_MIN_N  ( -32768, 2                             ) ,\
@@ -42,7 +61,7 @@ static const char *TAG = "SM";
   HID_INPUT          ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
   HID_COLLECTION_END                                            ,\
   HID_COLLECTION ( HID_COLLECTION_PHYSICAL )                    ,\
-  HID_REPORT_ID(HID_ITF_PROTOCOL_MOUSE)                                               \
+  HID_REPORT_ID(HID_ITF_PROTOCOL_MOUSE)                          \
   HID_LOGICAL_MIN_N  ( -32768, 2                              ) ,\
   HID_LOGICAL_MAX_N  ( 32767, 2                               ) ,\
   HID_PHYSICAL_MIN_N  ( -32768, 2                             ) ,\
@@ -66,6 +85,40 @@ static const char *TAG = "SM";
   HID_INPUT          ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
   HID_COLLECTION_END                                            ,\
   HID_COLLECTION_END
+#else
+#define TUD_HID_REPORT_DESC_SPACE_MOUSE \
+  HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                 ,\
+  HID_USAGE      ( HID_USAGE_DESKTOP_MULTI_AXIS_CONTROLLER  )   ,\
+  HID_COLLECTION ( HID_COLLECTION_APPLICATION )                 ,\
+  HID_COLLECTION ( HID_COLLECTION_PHYSICAL )                    ,\
+  HID_REPORT_ID(HID_ITF_PROTOCOL_KEYBOARD)                       \
+  HID_LOGICAL_MIN_N  ( -32768, 2                              ) ,\
+  HID_LOGICAL_MAX_N  ( 32767, 2                               ) ,\
+  HID_PHYSICAL_MIN_N  ( -32768, 2                             ) ,\
+  HID_PHYSICAL_MAX_N  ( 32767, 2                              ) ,\
+  HID_USAGE          ( HID_USAGE_DESKTOP_X                    ) ,\
+  HID_USAGE          ( HID_USAGE_DESKTOP_Y                    ) ,\
+  HID_USAGE          ( HID_USAGE_DESKTOP_Z                    ) ,\
+  HID_USAGE          ( HID_USAGE_DESKTOP_RX                   ) ,\
+  HID_USAGE          ( HID_USAGE_DESKTOP_RY                   ) ,\
+  HID_USAGE          ( HID_USAGE_DESKTOP_RZ                   ) ,\
+  HID_REPORT_SIZE    ( 16                                     ) ,\
+  HID_REPORT_COUNT   ( 6                                      ) ,\
+  HID_INPUT          ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
+  HID_COLLECTION_END                                            ,\
+  HID_COLLECTION ( HID_COLLECTION_PHYSICAL )                    ,\
+  HID_REPORT_ID(3)                                               \
+  HID_LOGICAL_MIN  ( 0                                        ) ,\
+  HID_LOGICAL_MAX  ( 1                                        ) ,\
+  HID_REPORT_SIZE    ( 1                                      ) ,\
+  HID_REPORT_COUNT   ( 32                                     ) ,\
+  HID_USAGE_PAGE     ( HID_USAGE_PAGE_BUTTON                  ) ,\
+  HID_USAGE_MIN      (1                                       ) ,\
+  HID_USAGE_MAX      (32                                      ) ,\
+  HID_INPUT          ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
+  HID_COLLECTION_END                                            ,\
+  HID_COLLECTION_END
+#endif
 
 #define TUSB_DESC_TOTAL_LEN      (TUD_CONFIG_DESC_LEN + CFG_TUD_HID * TUD_HID_DESC_LEN)
 
@@ -140,15 +193,17 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
 /********* Application ***************/
 
 void sendHidReport(int rx, int ry, int rz, int x, int y, int z) {
+#if DEVICE_TYPE == 66
     uint8_t trans[6] = { static_cast<uint8_t>(x & 0xFF) , static_cast<uint8_t>(x >> 8), static_cast<uint8_t>(y & 0xFF), static_cast<uint8_t>(y >> 8), static_cast<uint8_t>(z & 0xFF), static_cast<uint8_t>(z >> 8) };
     tud_hid_report(1, trans, 6);
 
     uint8_t rot[6] = { static_cast<uint8_t>(rx & 0xFF), static_cast<uint8_t>(rx >> 8), static_cast<uint8_t>(ry & 0xFF), static_cast<uint8_t>(ry >> 8), static_cast<uint8_t>(rz & 0xFF), static_cast<uint8_t>(rz >> 8) };
     tud_hid_report(2, rot, 6);
-                                      
-    // uint8_t trans[12] = { static_cast<uint8_t>(x & 0xFF) , static_cast<uint8_t>(x >> 8), static_cast<uint8_t>(y & 0xFF), static_cast<uint8_t>(y >> 8), static_cast<uint8_t>(z & 0xFF), static_cast<uint8_t>(z >> 8),
-    //     static_cast<uint8_t>(rx & 0xFF), static_cast<uint8_t>(rx >> 8),                      static_cast<uint8_t>(ry & 0xFF), static_cast<uint8_t>(ry >> 8), static_cast<uint8_t>(rz & 0xFF), static_cast<uint8_t>(rz >> 8) };
-    // tud_hid_report(1, trans, 12);
+#else                                      
+    uint8_t trans[12] = { static_cast<uint8_t>(x & 0xFF) , static_cast<uint8_t>(x >> 8), static_cast<uint8_t>(y & 0xFF), static_cast<uint8_t>(y >> 8), static_cast<uint8_t>(z & 0xFF), static_cast<uint8_t>(z >> 8),
+        static_cast<uint8_t>(rx & 0xFF), static_cast<uint8_t>(rx >> 8),                      static_cast<uint8_t>(ry & 0xFF), static_cast<uint8_t>(ry >> 8), static_cast<uint8_t>(rz & 0xFF), static_cast<uint8_t>(rz >> 8) };
+    tud_hid_report(1, trans, 12);
+#endif
 
 }                                     
                                                                                                                    
@@ -179,10 +234,17 @@ static tusb_desc_device_t descriptor_config = {
     .bDeviceSubClass = 0,//MISC_SUBCLASS_COMMON,
     .bDeviceProtocol = 0,//MISC_PROTOCOL_IAD,
     .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
-    // .idVendor = 0x256f, 
-    // .idProduct = 0xc631,
+
+#if SM_DEVICE == SPACE_MOUSE_PRO
     .idVendor = 0x046d, 
     .idProduct = 0xc62b,
+#elif SM_DEVICE == SPACE_MOUSE_WIRELESS
+    .idVendor = 0x256f, 
+    .idProduct = 0xc631,
+#elif SM_DEVICE == SPACE_MOUSE_ENTERPRISE
+    .idVendor = 0x256f, 
+    .idProduct = 0xc633,
+#endif
 
     .bcdDevice = 0x100,
     .iManufacturer = 0x01,
